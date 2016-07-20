@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# Finds python process PID, sends USR1 sig to it, then waits for shutdown to complete before proceeding.
+# Should be placed in /etc/init.d and symlinked to /etc/rc0.d
+touch /var/lock/K01aaKillCarputer
+kill -s USR1 `pidof python`
+while pidof python > /dev/null
+do
+    sleep 1
+done
