@@ -18,7 +18,7 @@ class GPSController():
             self.gpsd.next()
 
     # todo: this and stop() changed 11/22. if gps issues, investigate here
-    def run(self):
+    def start(self):
         self.running = True
         self.thread = threading.Thread(target=self.update)
         self.thread.start()

@@ -1,9 +1,6 @@
 __author__ = 'benradosevich'
 
 import sqlite3 as lite
-from Carputer import Carputer
-from time import time
-
 
 
 class DriveDatabase(object):

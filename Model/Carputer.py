@@ -2,7 +2,8 @@ import sys
 import traceback
 import logging
 from OBDController import NoOBDDataException
-from threading import Thread
+from threading import Thread, Event
+from Queue import Queue
 from time import sleep, time, mktime, strptime
 
 
@@ -145,32 +146,27 @@ class Carputer(object):
         return str(trip_avg), str(minutes_per_gallon), track
 
     def setup(self):
-        self.screen.messageQueue.put((self.gps.start, 'Initializing GPS'))
-        self.screen.messageQueue.put((self.obd.connect, 'Connecting OBD'))
-        self.screen.messageQueue.put((self.))  # how do i wait for gps fix
+        """Initializes GPS and OBD devices, waits for satellite fix, then creates DB table for drive"""
 
-        self.lcd.print_message('Initializing...')
+        # Loading animation is run on another thread so setup can occur while maintaining seamless animation
+        message_queue = Queue(1)
+        complete = Event()
+        loading_screen = Thread(target=self.screen.load_animation, args=(message_queue, complete))
 
+        # Prime the queue
+        message_queue.put('Initializing GPS')
+        # Begin setup
         self.gps.start()
-        self.lcd.clear()
-        self.lcd.print_message('GPS initialized')
-
+        message_queue.put('Connecting OBD')
         self.obd.connect()
-        self.lcd.clear()
-        self.lcd.print_message('OBD initialized')
-
         # Wait for GPS to get fix, as we'll use the GPS's time for timestamps
-        counter = 0
+        message_queue.put('Waiting For Fix')
         while not self.gps.has_fix:
-            self.lcd.clear()
-            self.lcd.print_message('No Satellite Fix')
-            self.lcd.print_message('\n' + (counter % 16) * '.')
-            counter += 1
             sleep(.25)
-
+        message_queue.put('Initializing DB')
         self.db.new_table(self.gen_timestamp())
-        self.lcd.clear()
-        self.lcd.print_message('DB initialized')
+        complete.set()
+        loading_screen.join()
 
     def start(self):
         self.setup()
@@ -188,9 +184,9 @@ class Carputer(object):
 
             # TODO: Continue to collect data even when GPS loses satellite fix
             if not self.gps.has_fix:
-                self.lcd.clear()
+                self.screen.clear()
                 sleep(.5)
-                self.lcd.print_message('Lost Satellite Fix')
+                self.screen.print_message('Lost Satellite Fix')
                 sleep(.5)
 
             # get data, write to DB
@@ -198,19 +194,19 @@ class Carputer(object):
                 data = self.get_data()
                 self.db.write_values(data)
                 message = self.create_message(self.process_data(data))
-                self.lcd.clear()
-                self.lcd.print_message(message)
+                self.screen.clear()
+                self.screen.print_message(message)
 
             except NoOBDDataException as e:
                 # Raised in poll_obd when a bad message is received from OBD device (after car shuts off)
                 logging.debug("Bad OBD message received, terminating")
                 logging.debug("Command: {0}\nResponse: {1}".format(e.command, e.response))
-                self.lcd.clear()
-                self.lcd.print_message("No OBD Data Received")
+                self.screen.clear()
+                self.screen.print_message("No OBD Data Received")
 
             except Exception as e:
-                self.lcd.clear()
-                self.lcd.print_message(str(e.message)[:16] + '\n' + str(e.message)[16:])
+                self.screen.clear()
+                self.screen.print_message(str(e.message)[:16] + '\n' + str(e.message)[16:])
                 logging.debug(e.message)
                 logging.debug(traceback.format_exc())
                 logging.debug("----------------------\n\n")
@@ -223,12 +219,12 @@ class Carputer(object):
         # Wait for the loop to terminate
         self.loop_thread.join(timeout=5)
         if self.loop_thread.is_alive():
-            self.lcd.clear()
-            self.lcd.print_message("Abnormal termination")
-        for method in self.obd.disconnect, self.gps.stop, self.lcd.clear:
+            self.screen.clear()
+            self.screen.print_message("Abnormal termination")
+        for method in self.obd.disconnect, self.gps.stop, self.screen.clear:
             try:
                 method()
             except Exception as e:
                 logging.debug(e.message)
-        self.lcd.print_message("Powering off.")
+        self.screen.print_message("Powering off.")
 
