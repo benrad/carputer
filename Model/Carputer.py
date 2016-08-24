@@ -150,12 +150,11 @@ class Carputer(object):
 
         # Loading animation is run on another thread so setup can occur while maintaining seamless animation
         message_queue = Queue(1)
-        complete = Event()
-        loading_screen = Thread(target=self.screen.load_animation, args=(message_queue, complete))
-
+        complete_token = Event()
         # Prime the queue
         message_queue.put('Initializing GPS')
         # Begin setup
+        self.screen.run_load_animation(message_queue, complete_token)
         self.gps.start()
         message_queue.put('Connecting OBD')
         self.obd.connect()
@@ -165,8 +164,7 @@ class Carputer(object):
             sleep(.25)
         message_queue.put('Initializing DB')
         self.db.new_table(self.gen_timestamp())
-        complete.set()
-        loading_screen.join()
+        complete_token.set()
 
     def start(self):
         self.setup()

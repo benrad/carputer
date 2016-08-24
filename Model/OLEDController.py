@@ -2,6 +2,7 @@ from oled.device import ssd1306
 from oled.render import canvas
 from PIL import ImageFont, ImageDraw
 from pytweening import easeOutQuad, easeInQuad
+from threading import Thread
 
 
 class OLEDController(object):
@@ -22,9 +23,9 @@ class OLEDController(object):
     def print_message(self, message):
         raise NotImplementedError("OLEDController.print_message is not complete yet")
 
-    def load_animation(self, message_queue, complete):
+    def run_load_animation(self, message_queue, complete_token):
         """Plays spin animation and prints loading message during carputer startup
-        Should be called on a new thread so that startup events continue on main thread as animation plays
+        Runs animation on a new thread so that startup events continue on main thread as animation plays
         :param message_queue: Queue for passing message text from Carputer.setup to screen
         :param complete: flag that signals that setup is complete when is_set() returns True"""
         speed = -35
@@ -41,14 +42,19 @@ class OLEDController(object):
                 draw.arc(((self.width / 2) - (self.height / 4), 0, (self.width / 2) + (self.height / 4),
                           self.height / 2), diameter, 0, fill=255)
 
-        status = message_queue.get()
-        while not complete.is_set():
-            for i in xrange(360, 0, speed):
-                if not message_queue.empty():
-                    status = message_queue.get()
-                draw_frame(out_animation, status, i)
-            for i in xrange(360, 0, speed):
-                if not message_queue.empty():
-                    status = message_queue.get()
-                draw_frame(in_animation, status, i)
-        self.clear()
+        def loop(queue, token):
+            status = queue.get()
+            while not token.is_set():
+                for i in xrange(360, 0, speed):
+                    if not queue.empty():
+                        status = queue.get()
+                    draw_frame(out_animation, status, i)
+                for i in xrange(360, 0, speed):
+                    if not queue.empty():
+                        status = queue.get()
+                    draw_frame(in_animation, status, i)
+            self.clear()
+
+        t = Thread(target=loop, args=(message_queue, complete_token))
+        t.daemon = True
+        t.start()
