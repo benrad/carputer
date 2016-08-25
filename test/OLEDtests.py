@@ -1,7 +1,8 @@
-from Model.OLEDController import OLEDController
+from __future__ import absolute_import
 from Queue import Queue
 from threading import Event
 from time import sleep
+from context import Model
 
 
 def test_load_animation(oledcontroller):
@@ -9,7 +10,7 @@ def test_load_animation(oledcontroller):
     cancellation_token = Event()
 
     message_queue.put('Event 1')
-    oledcontroller.run_load_animation(message_queue, cancellation_token)
+    t = oledcontroller.run_load_animation(message_queue, cancellation_token)
     sleep(2)
     message_queue.put('Event 2')
     sleep(3)
@@ -18,7 +19,8 @@ def test_load_animation(oledcontroller):
     message_queue.put('Event 4')
     sleep(1)
     cancellation_token.set()
+    t.join()
 
 if __name__ == '__main__':
-    oc = OLEDController()
+    oc = Model.OLEDController()
     test_load_animation(oc)

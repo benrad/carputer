@@ -154,7 +154,7 @@ class Carputer(object):
         # Prime the queue
         message_queue.put('Initializing GPS')
         # Begin setup
-        self.screen.run_load_animation(message_queue, complete_token)
+        t = self.screen.run_load_animation(message_queue, complete_token)
         self.gps.start()
         message_queue.put('Connecting OBD')
         self.obd.connect()
@@ -165,6 +165,7 @@ class Carputer(object):
         message_queue.put('Initializing DB')
         self.db.new_table(self.gen_timestamp())
         complete_token.set()
+        t.join()
 
     def start(self):
         self.setup()
